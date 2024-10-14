@@ -1,0 +1,116 @@
+#version 450
+#extension GL_EXT_mesh_shader : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int8  : require
+#extension GL_ARB_separate_shader_objects : enable
+
+#define WORKGROUP_SIZE 32
+#define MESHLET_VERTEX_COUNT 64
+#define MESHLET_PRIMITIVE_COUNT 124
+
+const uint MESHLET_VERTEX_ITERATIONS = (MESHLET_VERTEX_COUNT + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+const uint MESHLET_PRIMITIVE_ITERATIONS = (MESHLET_PRIMITIVE_COUNT + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+
+layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+layout(triangles, max_vertices = MESHLET_VERTEX_COUNT, max_primitives = MESHLET_PRIMITIVE_COUNT) out;
+
+layout(push_constant) uniform PushConstants {
+    mat4 projection;
+    mat4 modelView;
+} pc;
+
+layout(location = 0) out VertexOutput
+{
+	vec3 normal;
+	vec2 uv;
+	flat uint meshletID;
+} vertexOutput[];
+
+struct Vertex {
+	vec4 pos;
+	vec4 normal;
+	vec2 uv;
+};
+
+layout(set = 0, binding = 0) buffer VertexBuffer
+{
+	Vertex vertices[];
+};
+
+struct Meshlet
+{
+	uint vertexOffset;
+	uint primitiveOffset;
+	uint vertexCount;
+	uint primitiveCount;
+};
+
+layout(set = 0, binding = 1) buffer MeshletBuffer
+{
+	Meshlet meshlets[];
+};
+
+layout(set = 0, binding = 2) buffer MeshletVertexBuffer
+{
+	uint meshletVertices[];
+};
+
+layout(set = 0, binding = 3) buffer MeshletPrimitiveBuffer
+{
+	uint8_t meshletPrimitives[];
+};
+
+layout(set = 0, binding = 4) uniform MeshPropertyBuffer
+{
+	uint meshletCount;
+};
+
+void main()
+{
+	uint meshletID = gl_WorkGroupID.x;
+	if(meshletID >= meshletCount)
+	{
+		return;
+	}
+	Meshlet meshlet = meshlets[meshletID];
+
+	uint laneID = gl_LocalInvocationID.x;
+
+	mat4 mvp = pc.projection * pc.modelView;
+
+	for(uint i = 0; i < MESHLET_VERTEX_ITERATIONS; i++)
+	{
+		uint meshletVertexID = i * WORKGROUP_SIZE + laneID;
+		if(meshletVertexID >= meshlet.vertexCount)
+		{
+			break;
+		}
+
+		uint meshletVertex = meshletVertices[meshlet.vertexOffset + meshletVertexID];
+		Vertex vertex = vertices[meshletVertex];
+
+		gl_MeshVerticesEXT[meshletVertexID].gl_Position = mvp * vertex.pos;
+		vertexOutput[meshletVertexID].normal = vertex.normal.xyz;
+		vertexOutput[meshletVertexID].uv = vertex.uv;
+		vertexOutput[meshletVertexID].meshletID = meshletID;
+	}
+
+	for(uint i = 0; i < MESHLET_PRIMITIVE_ITERATIONS; i++)
+	{
+		uint meshletPrimitiveID = i * WORKGROUP_SIZE + laneID;
+		if(meshletPrimitiveID >= meshlet.primitiveCount)
+		{
+			break;
+		}
+
+		uint index0 = meshletPrimitives[meshlet.primitiveOffset + meshletPrimitiveID * 3 + 0];
+		uint index1 = meshletPrimitives[meshlet.primitiveOffset + meshletPrimitiveID * 3 + 1];
+		uint index2 = meshletPrimitives[meshlet.primitiveOffset + meshletPrimitiveID * 3 + 2];
+
+		gl_PrimitiveTriangleIndicesEXT[meshletPrimitiveID] = uvec3(index0, index1, index2);
+	}
+
+	if(laneID == 0)
+	{
+		SetMeshOutputsEXT(meshlet.vertexCount, meshlet.primitiveCount);
+	}
+}
