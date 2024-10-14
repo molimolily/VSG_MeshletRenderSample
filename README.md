@@ -1,6 +1,7 @@
 # VSG_MeshletRenderSample
 ## Overview
 This repository provides a simple example of rendering meshlets using Vulkan and the VulkanSceneGraph (VSG) framework.  
+It was created for the purpose of learning Vulkan's Mesh Shaders.
 
 <img src="https://github.com/user-attachments/assets/8bf3d0b8-ba2c-4fa0-93c3-4389a126d590" alt="Meshlet Render Sample" width="400">
 
