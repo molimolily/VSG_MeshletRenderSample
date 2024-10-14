@@ -12,4 +12,4 @@ This project makes use of the following libraries:
 
 ## References
 - [vsgExamples](https://github.com/vsg-dev/vsgExamples)
-- [gl_vk_meshlet_casscene](https://github.com/nvpro-samples/gl_vk_meshlet_cadscene)
+- [gl_vk_meshlet_cadscene](https://github.com/nvpro-samples/gl_vk_meshlet_cadscene)
